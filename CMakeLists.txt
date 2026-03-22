@@ -1,28 +1,48 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 project(BacktestingEngine LANGUAGES CXX)
 
-# Force GCC to use C++17 or C++20 for modern features
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# 1. Include Directories: This lets you use #include "portfolio/header.hpp"
 include_directories(.)
 
-# 2. Gather your source files
-# Professional Tip: Explicitly list files instead of using GLOB 
-# to avoid build issues when adding/removing files.
-set(SOURCES
-    main.cpp
-    portfolio/portfolio.cpp
-    execution/execution.cpp
-    data_handler/data_handler.cpp
-    # Add other .cpp files here
+# ── Engine library (all components, no main.cpp) ──────────────────────────────
+# Splitting engine code into a static lib lets both the Backtester binary and
+# the test executables link against it without recompiling every source twice.
+set(ENGINE_SOURCES
+    src/events/events.cpp
+    src/events/event_queue.cpp
+    src/data/data_handler.cpp
+    src/strategy/strategy.cpp
+    src/portfolio/portfolio.cpp
+    src/execution/execution_handler.cpp
+    src/performance/performance.cpp
 )
 
-# 3. Create the executable
-add_executable(Backtester ${SOURCES})
+add_library(engine_lib STATIC ${ENGINE_SOURCES})
+target_include_directories(engine_lib PUBLIC "${CMAKE_SOURCE_DIR}/include" "${CMAKE_SOURCE_DIR}")
 
-# 4. Compiler-specific flags for GCC
 if(CMAKE_COMPILER_IS_GNUCXX)
-    target_compile_options(Backtester PRIVATE -Wall -Wextra -O3)
+    target_compile_options(engine_lib PRIVATE -Wall -Wextra -O2)
 endif()
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(engine_lib PRIVATE -Wall -Wextra -O2)
+endif()
+
+# ── Backtester executable ─────────────────────────────────────────────────────
+add_executable(Backtester main.cpp)
+target_link_libraries(Backtester PRIVATE engine_lib)
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+# FetchContent pulls doctest at configure time — no manual download needed.
+include(FetchContent)
+FetchContent_Declare(
+    doctest
+    GIT_REPOSITORY https://github.com/doctest/doctest.git
+    GIT_TAG        v2.4.11
+)
+FetchContent_MakeAvailable(doctest)
+
+enable_testing()
+add_subdirectory(tests)

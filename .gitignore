@@ -39,3 +39,18 @@
 
 # debug information files
 *.dwo
+
+# CMake build directory
+build/
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Editor/IDE caches
+.cache/
+.vscode/
+.idea/
+
+# Claude Code internal files
+.claude/
