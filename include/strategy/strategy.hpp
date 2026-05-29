@@ -1,16 +1,15 @@
 #pragma once
 #include <deque>
-#include "events/events.hpp"
-#include "events/event_queue.hpp"
+#include "strategy/istrategy.hpp"
 
 // Dual SMA crossover strategy.
 // Emits SignalEvent(LONG) when fast SMA crosses above slow SMA,
 // and SignalEvent(EXIT) on the reverse crossover.
-class SmaCrossStrategy {
+class SmaCrossStrategy : public IStrategy {
 public:
     SmaCrossStrategy(int fast_period = 10, int slow_period = 30);
 
-    void on_market_event(const MarketEvent& m, EventQueue& queue);
+    void on_market_event(const MarketEvent& m, EventQueue& queue) override;
 
 private:
     int  fast_period_;

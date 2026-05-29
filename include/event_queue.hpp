@@ -16,4 +16,5 @@ private:
     size_t head = 0;           // Where we read from
     size_t tail = 0;           // Where we write to
     size_t capacity;           // Fixed size
+    size_t count = 0;          // Number of items currently in the queue
 };

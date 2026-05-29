@@ -1,6 +1,6 @@
 #pragma once
-#include "events/events.hpp"
-#include "events/event_queue.hpp"
+#include "events.hpp"
+#include "event_queue.hpp"
 
 // Slippage + commission model.
 // fill_price = close × (1 ± slippage_factor)

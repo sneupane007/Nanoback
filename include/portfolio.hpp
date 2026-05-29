@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
 #include <unordered_map>
-#include "events/events.hpp"
-#include "events/event_queue.hpp"
+#include "events.hpp"
+#include "event_queue.hpp"
 
 class Portfolio {
 public:
@@ -20,6 +20,16 @@ public:
     double equity(const double prices[]) const;
 
     double cash() const { return cash_; }
+
+    // Read-only position accessors used by LiveSession::get_state().
+    double position(const std::string& ticker) const {
+        int id = id_of(ticker);
+        return (id >= 0) ? positions_[id] : 0.0;
+    }
+    double avg_cost_for(const std::string& ticker) const {
+        int id = id_of(ticker);
+        return (id >= 0) ? avg_cost_[id] : 0.0;
+    }
 
 private:
     double cash_;

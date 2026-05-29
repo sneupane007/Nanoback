@@ -11,13 +11,22 @@ include_directories(.)
 # Splitting engine code into a static lib lets both the Backtester binary and
 # the test executables link against it without recompiling every source twice.
 set(ENGINE_SOURCES
-    src/events/events.cpp
-    src/events/event_queue.cpp
-    src/data/data_handler.cpp
+    src/event_queue.cpp
+    src/data_handler.cpp
     src/strategy/strategy.cpp
-    src/portfolio/portfolio.cpp
-    src/execution/execution_handler.cpp
-    src/performance/performance.cpp
+    src/strategy/rsi_strategy.cpp
+    src/strategy/mean_reversion_strategy.cpp
+    src/strategy/momentum_strategy.cpp
+    src/strategy/scalping_strategy.cpp
+    src/strategy/breakout_strategy.cpp
+    src/strategy/pullback_strategy.cpp
+    src/strategy/vwap_strategy.cpp
+    src/strategy/orb_strategy.cpp
+    src/strategy/strategy_factory.cpp
+    src/portfolio.cpp
+    src/execution_handler.cpp
+    src/performance.cpp
+    src/live_session.cpp
 )
 
 add_library(engine_lib STATIC ${ENGINE_SOURCES})
@@ -46,3 +55,25 @@ FetchContent_MakeAvailable(doctest)
 
 enable_testing()
 add_subdirectory(tests)
+
+# ── PyBind11 Python extension module ─────────────────────────────────────────
+# FetchContent pulls pybind11 at configure time — no manual install needed.
+# The output is a shared library (e.g. nanoback.cpython-311-darwin.so) that
+# Python's import system picks up when build/ is on sys.path.
+FetchContent_Declare(
+    pybind11
+    GIT_REPOSITORY https://github.com/pybind/pybind11.git
+    GIT_TAG        v2.13.1
+)
+FetchContent_MakeAvailable(pybind11)
+
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/bindings/nanoback_bindings.cpp")
+    pybind11_add_module(nanoback bindings/nanoback_bindings.cpp)
+    target_link_libraries(nanoback PRIVATE engine_lib)
+    target_include_directories(nanoback PRIVATE
+        "${CMAKE_SOURCE_DIR}/include"
+        "${CMAKE_SOURCE_DIR}"
+    )
+endif()
