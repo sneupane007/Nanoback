@@ -54,3 +54,16 @@ build/
 
 # Claude Code internal files
 .claude/
+
+# Project-local docs and notes (not part of the codebase)
+CLAUDE.md
+ARCHITECTURE.md
+medium-post.md
+nanoback-course.html
+event-loop-architecture.drawio
+
+# Downloaded market data
+data/*.csv
+
+# Python deps list
+requirements.txt

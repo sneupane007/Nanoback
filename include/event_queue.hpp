@@ -4,17 +4,18 @@
 
 class EventQueue {
 public:
-    // Constructor pre-allocates the 1,000,000 slots
-    EventQueue(size_t capacity = 1000000); 
+    EventQueue(size_t capacity = 1024);
 
-    void push(Event event);
-    Event pop();
-    bool empty() const;
+    void   push(Event event);
+    Event  pop();
+    bool   empty() const;
+    size_t peak_depth() const { return peak_count_; }
 
 private:
-    std::vector<Event> buffer; // The contiguous memory block
-    size_t head = 0;           // Where we read from
-    size_t tail = 0;           // Where we write to
-    size_t capacity;           // Fixed size
-    size_t count = 0;          // Number of items currently in the queue
+    std::vector<Event> buffer;
+    size_t head       = 0;
+    size_t tail       = 0;
+    size_t capacity;
+    size_t count      = 0;
+    size_t peak_count_ = 0;
 };

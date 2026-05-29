@@ -7,10 +7,7 @@
 enum class OrderDirection { LONG, SHORT, EXIT };
 enum class OrderType      { MARKET, LIMIT };
 
-// alignas(64) pins each struct to a cache-line boundary so adjacent
-// elements in the std::vector<Event> buffer never straddle two lines.
-
-struct alignas(64) MarketEvent {
+struct MarketEvent {
     uint64_t    timestamp;
     std::string ticker;
     double      open;
@@ -20,14 +17,14 @@ struct alignas(64) MarketEvent {
     uint64_t    volume;
 };
 
-struct alignas(64) SignalEvent {
+struct SignalEvent {
     uint64_t       timestamp;
     std::string    ticker;
     OrderDirection direction;
     double         target_weight;
 };
 
-struct alignas(64) OrderEvent {
+struct OrderEvent {
     uint64_t       timestamp;
     std::string    ticker;
     OrderDirection direction;
@@ -35,7 +32,7 @@ struct alignas(64) OrderEvent {
     uint32_t       quantity;
 };
 
-struct alignas(64) FillEvent {
+struct FillEvent {
     uint64_t       timestamp;
     std::string    ticker;
     OrderDirection direction;

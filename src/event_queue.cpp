@@ -7,13 +7,13 @@ EventQueue::EventQueue(size_t cap) : head(0), tail(0), capacity(cap) {
 }
 
 void EventQueue::push(Event event) {
-    
     if (count == capacity) {
         throw std::runtime_error("EventQueue overflow! Strategy is generating events faster than processing.");
     }
     buffer[tail] = std::move(event);
     tail = (tail + 1) % capacity;
     ++count;
+    if (count > peak_count_) peak_count_ = count;
 }
 
 Event EventQueue::pop() {
