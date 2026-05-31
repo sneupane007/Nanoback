@@ -62,17 +62,25 @@ int main(int argc, char* argv[]) {
    
     double prices[Portfolio::MAX_ASSETS] = {};
 
-    double  latest_close = 0.0;
-    int64_t total_ns     = 0;
-    uint64_t event_count = 0;
+    double   latest_close = 0.0;
+    uint64_t event_count  = 0;
+    uint64_t bar_count    = 0;
+    int64_t  parse_ns     = 0;   // time inside DataHandler: CSV read + parse
+    int64_t  process_ns   = 0;   // time inside the event-dispatch cascade
 
-    while (data.stream_next_event(queue)) {
+    const auto wall_t0 = Benchmark::now();
+
+    while (true) {
+        const auto tp  = Benchmark::now();
+        const bool got = data.stream_next_event(queue);
+        parse_ns += Benchmark::elapsed_ns(tp);
+        if (!got) break;
+        ++bar_count;
 
         
+        const auto tc = Benchmark::now();
         while (!queue.empty()) {
             Event e = queue.pop();
-
-            auto t0 = Benchmark::now();
 
             std::visit(overload{
                 [&](const MarketEvent& m) {
@@ -94,23 +102,33 @@ int main(int argc, char* argv[]) {
                 },
             }, e);
 
-            total_ns += Benchmark::elapsed_ns(t0);
             ++event_count;
         }
+        process_ns += Benchmark::elapsed_ns(tc);
 
         
         perf.record_equity(portfolio.equity(prices));
     }
 
+    const int64_t wall_ns = Benchmark::elapsed_ns(wall_t0);
+
     perf.report();
 
+    auto to_ms  = [](int64_t ns) { return ns / 1e6; };
+    auto bars_s = [&](int64_t ns) { return ns ? bar_count / (ns / 1e9) : 0.0; };
+
     std::cout << "\n=== Timing ===\n";
-    std::cout << "Events processed : " << event_count << "\n";
-    std::cout << "Peak queue depth : " << queue.peak_depth() << "\n";
-    std::cout << "Total time       : " << total_ns    << " ns\n";
-    std::cout << "Avg per event    : "
-              << (event_count ? total_ns / (int64_t)event_count : 0)
-              << " ns\n";
+    std::cout << "Bars (MarketEvents) : " << bar_count   << "\n";
+    std::cout << "Events processed    : " << event_count << "\n";
+    std::cout << "Peak queue depth    : " << queue.peak_depth() << "\n";
+    std::cout << "Parse  (CSV ingest) : " << to_ms(parse_ns)   << " ms  ("
+              << bars_s(parse_ns)   << " bars/s)\n";
+    std::cout << "Process (cascade)   : " << to_ms(process_ns) << " ms  ("
+              << bars_s(process_ns) << " bars/s)\n";
+    std::cout << "Wall clock          : " << to_ms(wall_ns)    << " ms  ("
+              << bars_s(wall_ns)    << " bars/s)\n";
+    std::cout << "Parse share of wall : "
+              << (wall_ns ? 100.0 * (double)parse_ns / wall_ns : 0.0) << " %\n";
 
     return 0;
 }
