@@ -55,25 +55,3 @@ FetchContent_MakeAvailable(doctest)
 
 enable_testing()
 add_subdirectory(tests)
-
-# ── PyBind11 Python extension module ─────────────────────────────────────────
-# FetchContent pulls pybind11 at configure time — no manual install needed.
-# The output is a shared library (e.g. nanoback.cpython-311-darwin.so) that
-# Python's import system picks up when build/ is on sys.path.
-FetchContent_Declare(
-    pybind11
-    GIT_REPOSITORY https://github.com/pybind/pybind11.git
-    GIT_TAG        v2.13.1
-)
-FetchContent_MakeAvailable(pybind11)
-
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-
-if(EXISTS "${CMAKE_SOURCE_DIR}/bindings/nanoback_bindings.cpp")
-    pybind11_add_module(nanoback bindings/nanoback_bindings.cpp)
-    target_link_libraries(nanoback PRIVATE engine_lib)
-    target_include_directories(nanoback PRIVATE
-        "${CMAKE_SOURCE_DIR}/include"
-        "${CMAKE_SOURCE_DIR}"
-    )
-endif()
