@@ -19,14 +19,21 @@ def download_trading_data(ticker, interval, period, filename):
     """
     
     # Download data
-    data = yf.download(tickers=ticker, period=period, interval=interval)
-    
+    data = yf.download(tickers=ticker, period=period, interval=interval,
+                       auto_adjust=True)
+
     if data.empty:
         print("No data found. Check your ticker symbol or parameters.")
         return
 
-    # yfinance returns a MultiIndex if multiple tickers are used; 
-    # we flatten it and ensure the format is: Date, Open, High, Low, Close, Volume
+    # yfinance >= 0.2 returns a MultiIndex column header even for a single
+    # ticker, e.g. ('Open', 'AAPL'). Left unflattened, to_csv writes a phantom
+    # second header row (",AAPL,AAPL,...") that the C++ DataHandler parses as a
+    # garbage all-zeros first bar. Drop the ticker level so the columns are flat.
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+
+    # Ensure the format is: Date, Open, High, Low, Close, Volume
     data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
     
     # Reset index to make 'Date' a column
@@ -42,9 +49,14 @@ def download_trading_data(ticker, interval, period, filename):
 if __name__ == "__main__":
     # --- CONFIGURATION AREA ---
     # Update these variables to change your data output
-    SYMBOL = "NVDA"      # Ticker symbol (Yahoo Finance format)
-    TIMEFRAME = "1h"        # Data interval (as requested: 1 hour)
-    RETRIEVAL_RANGE = "1y"  # How far back to go (1 year)
-    FILE_NAME = "trading_data.csv"
+    SYMBOL = "AAPL"         # Ticker symbol (Yahoo Finance format)
+    TIMEFRAME = "1d"        # Daily bars — full price history, real trends/reversals
+    RETRIEVAL_RANGE = "max" # Entire available history (decades of daily bars)
+    FILE_NAME = "AAPL.csv"
+    # Note: intraday intervals are range-capped by Yahoo (1m -> last 7 days,
+    # 1h -> last 730 days). For intraday strategies (scalping/orb/vwap), use
+    # e.g. TIMEFRAME="1h", RETRIEVAL_RANGE="2y".
+
+    
     
     download_trading_data(SYMBOL, TIMEFRAME, RETRIEVAL_RANGE, FILE_NAME)

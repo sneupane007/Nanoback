@@ -4,7 +4,6 @@
 #include <unordered_map>
 #include <vector>
 #include <charconv>
-#include <ctime>
 
 void DataHandler::parse_header(const std::string& header) {
     static const std::unordered_map<std::string, int> alias_map = {
@@ -137,16 +136,22 @@ MarketEvent DataHandler::parse_csv_line(const std::string& line) {
                     sec -= offset_sec;
                 }
             }
-            std::tm tm{};
-            tm.tm_year  = y - 1900;
-            tm.tm_mon   = mo - 1;
-            tm.tm_mday  = d;
-            tm.tm_hour  = h;
-            tm.tm_min   = mi;
-            tm.tm_sec   = sec;
-            tm.tm_isdst = 0;
-           
-            time_t t = timegm(&tm);
+            // days_from_civil (Howard Hinnant, public domain): converts a
+            // proleptic-Gregorian (y, m, d) to days since 1970-01-01 with a
+            // handful of integer ops — no libc, no locale, no timegm. This
+            // replaces the per-bar timegm() call that profiling showed was
+            // ~90% of CSV parse time.
+            auto days_from_civil = [](int yr, unsigned mo_, unsigned dy) -> long long {
+                yr -= mo_ <= 2;
+                const long long era = (yr >= 0 ? yr : yr - 399) / 400;
+                const unsigned  yoe = static_cast<unsigned>(yr - era * 400);      // [0, 399]
+                const unsigned  doy = (153 * (mo_ + (mo_ > 2 ? -3 : 9)) + 2) / 5 + dy - 1; // [0, 365]
+                const unsigned  doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;      // [0, 146096]
+                return era * 146097 + static_cast<long long>(doe) - 719468;
+            };
+            const long long days = days_from_civil(y, static_cast<unsigned>(mo),
+                                                       static_cast<unsigned>(d));
+            const long long t = days * 86400LL + h * 3600LL + mi * 60LL + sec;
             if (t >= 0) m.timestamp = static_cast<uint64_t>(t);
         }
     }
