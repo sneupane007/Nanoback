@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <vector>
 #include <charconv>
+#include <string_view>
 
 void DataHandler::parse_header(const std::string& header) {
     static const std::unordered_map<std::string, int> alias_map = {
@@ -79,41 +80,53 @@ bool DataHandler::stream_next_event(EventQueue& queue) {
 
 bool DataHandler::is_active() const { return active_; }
 
-// Manual comma scan — avoids constructing a std::stringstream per bar.
+// Manual comma scan with zero per-bar allocations: each field is a
+// std::string_view into `line` (non-owning), fed straight to from_chars.
+// The previous version built a std::vector<std::string> + substr per field
+// (~7 heap allocations per bar) — profiling flagged those as the residual
+// parse cost after the timegm fix, so they're gone.
 MarketEvent DataHandler::parse_csv_line(const std::string& line) {
-    std::vector<std::string> fields;
-    fields.reserve(8);  
-    size_t start = 0;
-    for (size_t i = 0; i <= line.size(); ++i) {
-        if (i == line.size() || line[i] == ',') {
-            std::string f = line.substr(start, i - start);
-            if (!f.empty() && f.back() == '\r') f.pop_back(); 
-            fields.push_back(std::move(f));
-            start = i + 1;
+    constexpr int kMaxFields = 16;          // OHLCV CSVs have ~6 columns
+    std::string_view fields[kMaxFields];
+    int n = 0;
+
+    const char* const base  = line.data();
+    const char* const stop  = base + line.size();
+    const char*       start = base;
+    for (const char* c = base; ; ++c) {
+        if (c == stop || *c == ',') {
+            const char* end = c;
+            if (end > start && end[-1] == '\r') --end;   // strip trailing CR
+            if (n < kMaxFields)
+                fields[n++] = std::string_view(start, static_cast<size_t>(end - start));
+            if (c == stop) break;
+            start = c + 1;
         }
     }
 
     MarketEvent m{};
     m.ticker = ticker_;
 
-    const int n = static_cast<int>(fields.size());
     const int max_idx = std::max({col_date_, col_open_, col_high_,
                                   col_low_,  col_close_, col_vol_});
 
-    auto parse_d = [](const std::string& s, double&   out) {
+    auto parse_d = [](std::string_view s, double&   out) {
         std::from_chars(s.data(), s.data() + s.size(), out);
     };
-    auto parse_u = [](const std::string& s, uint64_t& out) {
+    auto parse_u = [](std::string_view s, uint64_t& out) {
         std::from_chars(s.data(), s.data() + s.size(), out);
     };
 
     if (col_date_ < n) {
-        const std::string& ds = fields[col_date_];
+        const std::string_view ds = fields[col_date_];
         
         uint64_t raw = 0;
         auto [ptr, ec] = std::from_chars(ds.data(), ds.data() + ds.size(), raw);
         
-        if (ec == std::errc{} && ptr == ds.data() + ds.size() && raw > 1000000000ULL) {
+        // A cleanly-parsed integer that consumes the whole field is an epoch
+        // timestamp (seconds, or ms for 13-digit feeds). No magnitude guard:
+        // the old `raw > 1e9` test silently dropped any pre-2001 epoch to 0.
+        if (ec == std::errc{} && ptr == ds.data() + ds.size()) {
             m.timestamp = raw;
         } else if (ds.size() >= 10 && ds[4] == '-' && ds[7] == '-') {
             
