@@ -49,6 +49,7 @@ target_include_directories(engine_lib PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}"
     "${CMAKE_CURRENT_BINARY_DIR}"   # where ohlcv.pb.h is generated
+    "${Protobuf_INCLUDE_DIRS}"      # google/protobuf/*.h (runtime_version.h etc.)
 )
 target_link_libraries(engine_lib PUBLIC ${Protobuf_LIBRARIES} Threads::Threads)
 
