@@ -1,0 +1,12 @@
+syntax = "proto3";
+package nanoback;
+
+message OhlcvBar {
+    uint64 timestamp = 1;
+    string ticker    = 2;
+    double open      = 3;
+    double high      = 4;
+    double low       = 5;
+    double close     = 6;
+    uint64 volume    = 7;
+}

@@ -8,14 +8,16 @@ function(add_engine_test name source)
     target_include_directories(${name} PRIVATE
         "${CMAKE_SOURCE_DIR}/include"
         "${CMAKE_SOURCE_DIR}"
+        "${CMAKE_BINARY_DIR}"
     )
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
-add_engine_test(test_event_queue  events/test_event_queue.cpp)
-add_engine_test(test_data_handler data/test_data_handler.cpp)
-add_engine_test(test_strategy     strategy/test_strategy.cpp)
-add_engine_test(test_portfolio    portfolio/test_portfolio.cpp)
-add_engine_test(test_execution    execution/test_execution_handler.cpp)
-add_engine_test(test_performance  performance/test_performance.cpp)
-add_engine_test(test_live_session live/test_live_session.cpp)
+add_engine_test(test_event_queue          events/test_event_queue.cpp)
+add_engine_test(test_data_handler         data/test_data_handler.cpp)
+add_engine_test(test_proto_data_handler   data/test_proto_data_handler.cpp)
+add_engine_test(test_strategy             strategy/test_strategy.cpp)
+add_engine_test(test_portfolio            portfolio/test_portfolio.cpp)
+add_engine_test(test_execution            execution/test_execution_handler.cpp)
+add_engine_test(test_performance          performance/test_performance.cpp)
+add_engine_test(test_live_session         live/test_live_session.cpp)

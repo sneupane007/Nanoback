@@ -1,6 +1,7 @@
 #include "include/data_handler.hpp"
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <unordered_map>
 #include <vector>
 #include <charconv>

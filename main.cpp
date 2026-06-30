@@ -5,6 +5,7 @@
 #include "include/events.hpp"
 #include "include/event_queue.hpp"
 #include "include/data_handler.hpp"
+#include "include/proto_data_handler.hpp"
 #include "include/strategy/strategy_factory.hpp"
 #include "include/portfolio.hpp"
 #include "include/execution_handler.hpp"
@@ -15,27 +16,30 @@
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         std::cerr << "Usage: " << argv[0]
-                  << " <csv_path> <ticker>"
+                  << " <data_path> <ticker>"
+                  << " [--proto]"
                   << " [--strategy sma|rsi|mean_reversion]"
                   << " [--p1 <int>] [--p2 <int>] [--fp <double>]\n";
         return 1;
     }
 
-    const std::string csv_path = argv[1];
-    const std::string ticker   = argv[2];
+    const std::string data_path = argv[1];
+    const std::string ticker    = argv[2];
 
     // --- Parse strategy flags ---
     std::string strategy_name = "sma"; // default
-    int    p1 = 0;
-    int    p2 = 0;
-    double fp = 0.0;
+    int    p1        = 0;
+    int    p2        = 0;
+    double fp        = 0.0;
+    bool   use_proto = false;
 
     for (int i = 3; i < argc; ++i) {
         std::string arg = argv[i];
-        if      (arg == "--strategy" && i + 1 < argc) strategy_name = argv[++i];
-        else if (arg == "--p1"       && i + 1 < argc) p1  = std::stoi(argv[++i]);
-        else if (arg == "--p2"       && i + 1 < argc) p2  = std::stoi(argv[++i]);
-        else if (arg == "--fp"       && i + 1 < argc) fp  = std::stod(argv[++i]);
+        if      (arg == "--proto")                        use_proto     = true;
+        else if (arg == "--strategy" && i + 1 < argc) strategy_name = argv[++i];
+        else if (arg == "--p1"       && i + 1 < argc) p1            = std::stoi(argv[++i]);
+        else if (arg == "--p2"       && i + 1 < argc) p2            = std::stoi(argv[++i]);
+        else if (arg == "--fp"       && i + 1 < argc) fp            = std::stod(argv[++i]);
     }
 
     std::unique_ptr<IStrategy> strategy;
@@ -47,12 +51,18 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Strategy: " << strategy_name << "\n";
+    std::cout << "Data source: " << (use_proto ? "protobuf" : "CSV") << "\n";
     std::cout << "sizeof(MarketEvent)=" << sizeof(MarketEvent)
               << "  sizeof(Event)=" << sizeof(Event)
               << "  buffer_bytes=" << sizeof(Event) * 1024 << "\n\n";
 
-    EventQueue         queue;
-    DataHandler        data(csv_path, ticker);
+    EventQueue queue;
+    std::unique_ptr<IDataHandler> data;
+    if (use_proto)
+        data = std::make_unique<ProtoDataHandler>(data_path, ticker);
+    else
+        data = std::make_unique<DataHandler>(data_path, ticker);
+
     Portfolio          portfolio(100000.0);
     ExecutionHandler   execution;
     PerformanceTracker perf(10000);
@@ -72,7 +82,7 @@ int main(int argc, char* argv[]) {
 
     while (true) {
         const auto tp  = Benchmark::now();
-        const bool got = data.stream_next_event(queue);
+        const bool got = data->stream_next_event(queue);
         parse_ns += Benchmark::elapsed_ns(tp);
         if (!got) break;
         ++bar_count;
@@ -121,7 +131,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Bars (MarketEvents) : " << bar_count   << "\n";
     std::cout << "Events processed    : " << event_count << "\n";
     std::cout << "Peak queue depth    : " << queue.peak_depth() << "\n";
-    std::cout << "Parse  (CSV ingest) : " << to_ms(parse_ns)   << " ms  ("
+    std::cout << "Parse  (data ingest): " << to_ms(parse_ns)   << " ms  ("
               << bars_s(parse_ns)   << " bars/s)\n";
     std::cout << "Process (cascade)   : " << to_ms(process_ns) << " ms  ("
               << bars_s(process_ns) << " bars/s)\n";

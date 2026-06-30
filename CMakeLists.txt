@@ -7,12 +7,26 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include_directories(.)
 
+# ── doctest (vendored header — no network required) ───────────────────────────
+add_library(doctest INTERFACE)
+target_include_directories(doctest INTERFACE "${CMAKE_SOURCE_DIR}/third_party")
+add_library(doctest::doctest ALIAS doctest)
+
+# ── Protobuf ──────────────────────────────────────────────────────────────────
+find_package(Protobuf REQUIRED)
+
+# Generate ohlcv.pb.cc / ohlcv.pb.h from the proto schema.
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS proto/ohlcv.proto)
+
+find_package(Threads REQUIRED)
+
 # ── Engine library (all components, no main.cpp) ──────────────────────────────
 # Splitting engine code into a static lib lets both the Backtester binary and
 # the test executables link against it without recompiling every source twice.
 set(ENGINE_SOURCES
     src/event_queue.cpp
     src/data_handler.cpp
+    src/proto_data_handler.cpp
     src/strategy/strategy.cpp
     src/strategy/rsi_strategy.cpp
     src/strategy/mean_reversion_strategy.cpp
@@ -27,10 +41,16 @@ set(ENGINE_SOURCES
     src/execution_handler.cpp
     src/performance.cpp
     src/live_session.cpp
+    ${PROTO_SRCS}
 )
 
 add_library(engine_lib STATIC ${ENGINE_SOURCES})
-target_include_directories(engine_lib PUBLIC "${CMAKE_SOURCE_DIR}/include" "${CMAKE_SOURCE_DIR}")
+target_include_directories(engine_lib PUBLIC
+    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}"   # where ohlcv.pb.h is generated
+)
+target_link_libraries(engine_lib PUBLIC ${Protobuf_LIBRARIES} Threads::Threads)
 
 if(CMAKE_COMPILER_IS_GNUCXX)
     target_compile_options(engine_lib PRIVATE -Wall -Wextra -O2)
@@ -44,14 +64,5 @@ add_executable(Backtester main.cpp)
 target_link_libraries(Backtester PRIVATE engine_lib)
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
-# FetchContent pulls doctest at configure time — no manual download needed.
-include(FetchContent)
-FetchContent_Declare(
-    doctest
-    GIT_REPOSITORY https://github.com/doctest/doctest.git
-    GIT_TAG        v2.4.11
-)
-FetchContent_MakeAvailable(doctest)
-
 enable_testing()
 add_subdirectory(tests)

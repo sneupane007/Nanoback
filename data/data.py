@@ -45,7 +45,7 @@ def download_trading_data(ticker, interval, period, filename):
     # Save to CSV
     data.to_csv(filename, index=False)
     print(f"Success! Data saved to {filename}")
-
+    
 if __name__ == "__main__":
     # --- CONFIGURATION AREA ---
     # Update these variables to change your data output
