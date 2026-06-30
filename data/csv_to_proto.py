@@ -18,8 +18,9 @@ import struct
 import sys
 import os
 
-# Adjust path so we can import the generated ohlcv_pb2 module from data/
-sys.path.insert(0, os.path.dirname(__file__))
+# Adjust path so we can import the generated ohlcv_pb2 module.
+# protoc --python_out=data proto/ohlcv.proto generates data/proto/ohlcv_pb2.py
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "proto"))
 
 try:
     import ohlcv_pb2

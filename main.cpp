@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: " << argv[0]
                   << " <data_path> <ticker>"
                   << " [--proto]"
-                  << " [--strategy sma|rsi|mean_reversion]"
+                  << " [--strategy sma|rsi|mean_reversion|momentum|scalping|breakout|pullback|vwap|orb]"
                   << " [--p1 <int>] [--p2 <int>] [--fp <double>]\n";
         return 1;
     }
@@ -124,19 +124,19 @@ int main(int argc, char* argv[]) {
 
     perf.report();
 
-    auto to_ms  = [](int64_t ns) { return ns / 1e6; };
-    auto bars_s = [&](int64_t ns) { return ns ? bar_count / (ns / 1e9) : 0.0; };
+    auto to_ms   = [](int64_t ns)  { return ns / 1e6; };
+    auto kbars_s = [&](int64_t ns) { return ns ? bar_count / (ns / 1e9) / 1000.0 : 0.0; };
 
     std::cout << "\n=== Timing ===\n";
     std::cout << "Bars (MarketEvents) : " << bar_count   << "\n";
     std::cout << "Events processed    : " << event_count << "\n";
     std::cout << "Peak queue depth    : " << queue.peak_depth() << "\n";
     std::cout << "Parse  (data ingest): " << to_ms(parse_ns)   << " ms  ("
-              << bars_s(parse_ns)   << " bars/s)\n";
+              << kbars_s(parse_ns)   << " k bars/s)\n";
     std::cout << "Process (cascade)   : " << to_ms(process_ns) << " ms  ("
-              << bars_s(process_ns) << " bars/s)\n";
+              << kbars_s(process_ns) << " k bars/s)\n";
     std::cout << "Wall clock          : " << to_ms(wall_ns)    << " ms  ("
-              << bars_s(wall_ns)    << " bars/s)\n";
+              << kbars_s(wall_ns)    << " k bars/s)\n";
     std::cout << "Parse share of wall : "
               << (wall_ns ? 100.0 * (double)parse_ns / wall_ns : 0.0) << " %\n";
 
