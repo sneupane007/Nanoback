@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 #include "backtest_result.hpp"
 
 // Groups the parameters that main.cpp used to parse from argv into one value
@@ -25,3 +26,30 @@ struct BacktestConfig {
 //
 // Throws std::invalid_argument if strategy_name is unknown (from make_strategy).
 BacktestResult run_backtest(const BacktestConfig& cfg);
+
+// Metrics-only result carrier for one swept run. Echoes the sweep axes
+// (ticker, p1, p2, fp) plus the scalar metrics, and deliberately OMITS the heavy
+// per-bar vectors in BacktestResult (equity_curve, market_data, timestamps) so a
+// grid of hundreds of runs stays cheap to move across the PyBind11 boundary.
+struct SweepResult {
+    std::string ticker;
+    int    p1 = 0;
+    int    p2 = 0;
+    double fp = 0.0;
+
+    double total_return = 0.0;
+    double sharpe_ratio = 0.0;
+    double max_drawdown = 0.0;
+    double win_rate     = 0.0;
+    int    total_trades = 0;
+    int    total_bars   = 0;
+    double elapsed_ms   = 0.0;
+};
+
+// Runs every config in parallel and returns one SweepResult per config, in the
+// same order as the input. Work is launched in bounded waves of
+// std::thread::hardware_concurrency() so a large multi-ticker grid never spawns
+// hundreds of OS threads at once (the workload is CPU-bound). Strategy names are
+// validated up front, so a typo throws std::invalid_argument immediately rather
+// than surfacing deep inside a worker at future::get().
+std::vector<SweepResult> run_batch(const std::vector<BacktestConfig>& configs);
