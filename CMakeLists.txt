@@ -41,6 +41,7 @@ set(ENGINE_SOURCES
     src/execution_handler.cpp
     src/performance.cpp
     src/live_session.cpp
+    src/run_backtest.cpp
     ${PROTO_SRCS}
 )
 
