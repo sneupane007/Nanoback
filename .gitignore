@@ -16,7 +16,12 @@
 
 # Debugger Files
 *.pdb
+# generated pb files
+*.pb.cc
+*.pb.h
 
+data/*.pb
+data/proto/
 # Compiled Dynamic libraries
 *.so
 *.dylib
@@ -54,7 +59,8 @@ build/
 
 # Claude Code internal files
 .claude/
-
+.lavish
+docs/
 # Project-local docs and notes (not part of the codebase)
 CLAUDE.md
 ARCHITECTURE.md
