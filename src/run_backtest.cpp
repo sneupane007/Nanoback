@@ -3,6 +3,13 @@
 #include <memory>
 #include <variant>
 #include <cstdint>
+#include <vector>
+#include <future>
+#include <thread>
+#include <algorithm>
+#include <unordered_set>
+
+#include "ohlcv.pb.h"   // for the one-time protobuf descriptor warm-up
 
 #include "include/events.hpp"
 #include "include/event_queue.hpp"
@@ -114,4 +121,67 @@ BacktestResult run_backtest(const BacktestConfig& cfg) {
     r.bars_per_sec     = wall_secs > 0.0 ? bar_count   / wall_secs : 0.0;
     r.column_align_ms  = column_align_ms;
     return r;
+}
+
+// Parallel fan-out over a list of configs. Each run is fully independent (its own
+// queue, handlers, strategy, and file stream), so no synchronisation is needed
+// during a run — the only shared resource, std::cout, is never touched because
+// run_backtest() is silent.
+std::vector<SweepResult> run_batch(const std::vector<BacktestConfig>& configs) {
+    std::vector<SweepResult> results;
+    results.reserve(configs.size());
+    if (configs.empty()) return results;
+
+    // Fail fast on a bad strategy name: validate each distinct name once, here on
+    // the calling thread, instead of letting the exception surface at .get().
+    std::unordered_set<std::string> validated;
+    for (const auto& cfg : configs) {
+        if (validated.insert(cfg.strategy_name).second) {
+            make_strategy(cfg.strategy_name, cfg.p1, cfg.p2, cfg.fp);  // throws if unknown
+        }
+    }
+
+    // protobuf builds message descriptors lazily on first use; forcing that once
+    // here avoids a data race when many workers first call ParseFromString().
+    const bool any_proto = std::any_of(
+        configs.begin(), configs.end(),
+        [](const BacktestConfig& c) { return c.use_proto; });
+    if (any_proto) {
+        nanoback::OhlcvBar warm;
+        (void)warm.ByteSizeLong();
+    }
+
+    unsigned hw = std::thread::hardware_concurrency();
+    if (hw == 0) hw = 4;  // fall back to a sane default if unknowable
+
+    // Launch in bounded waves: drain each wave's futures before starting the next
+    // so at most `hw` runs are in flight at once.
+    for (size_t start = 0; start < configs.size(); start += hw) {
+        const size_t end = std::min(start + hw, configs.size());
+
+        std::vector<std::future<SweepResult>> futures;
+        futures.reserve(end - start);
+        for (size_t i = start; i < end; ++i) {
+            BacktestConfig cfg = configs[i];  // capture by value — no shared state
+            futures.push_back(std::async(std::launch::async, [cfg]() {
+                BacktestResult r = run_backtest(cfg);
+                SweepResult s;
+                s.ticker       = cfg.ticker;
+                s.p1           = cfg.p1;
+                s.p2           = cfg.p2;
+                s.fp           = cfg.fp;
+                s.total_return = r.total_return;
+                s.sharpe_ratio = r.sharpe_ratio;
+                s.max_drawdown = r.max_drawdown;
+                s.win_rate     = r.win_rate;
+                s.total_trades = r.total_trades;
+                s.total_bars   = r.total_bars;
+                s.elapsed_ms   = r.elapsed_ms;
+                return s;
+            }));
+        }
+        for (auto& f : futures) results.push_back(f.get());
+    }
+
+    return results;
 }
