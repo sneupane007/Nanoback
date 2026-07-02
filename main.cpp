@@ -1,17 +1,10 @@
 #include <iostream>
-#include <memory>
+#include <iomanip>
+#include <stdexcept>
 #include <string>
 
-#include "include/events.hpp"
-#include "include/event_queue.hpp"
-#include "include/data_handler.hpp"
-#include "include/proto_data_handler.hpp"
-#include "include/strategy/strategy_factory.hpp"
-#include "include/portfolio.hpp"
-#include "include/execution_handler.hpp"
-#include "include/performance.hpp"
-#include "include/overload.hpp"
-#include "include/benchmark.hpp"
+#include "include/events.hpp"        // sizeof(MarketEvent)/sizeof(Event) banner
+#include "include/run_backtest.hpp"
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
@@ -23,122 +16,63 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    const std::string data_path = argv[1];
-    const std::string ticker    = argv[2];
-
-    // --- Parse strategy flags ---
-    std::string strategy_name = "sma"; // default
-    int    p1        = 0;
-    int    p2        = 0;
-    double fp        = 0.0;
-    bool   use_proto = false;
+    // --- Parse args into a BacktestConfig ---
+    BacktestConfig cfg;
+    cfg.data_path = argv[1];
+    cfg.ticker    = argv[2];
 
     for (int i = 3; i < argc; ++i) {
         std::string arg = argv[i];
-        if      (arg == "--proto")                        use_proto     = true;
-        else if (arg == "--strategy" && i + 1 < argc) strategy_name = argv[++i];
-        else if (arg == "--p1"       && i + 1 < argc) p1            = std::stoi(argv[++i]);
-        else if (arg == "--p2"       && i + 1 < argc) p2            = std::stoi(argv[++i]);
-        else if (arg == "--fp"       && i + 1 < argc) fp            = std::stod(argv[++i]);
+        if      (arg == "--proto")                    cfg.use_proto     = true;
+        else if (arg == "--strategy" && i + 1 < argc) cfg.strategy_name = argv[++i];
+        else if (arg == "--p1"       && i + 1 < argc) cfg.p1            = std::stoi(argv[++i]);
+        else if (arg == "--p2"       && i + 1 < argc) cfg.p2            = std::stoi(argv[++i]);
+        else if (arg == "--fp"       && i + 1 < argc) cfg.fp            = std::stod(argv[++i]);
     }
 
-    std::unique_ptr<IStrategy> strategy;
+    // run_backtest() constructs the strategy internally and throws for an
+    // unknown name — it runs silently, so on error nothing has been printed yet.
+    BacktestResult r;
     try {
-        strategy = make_strategy(strategy_name, p1, p2, fp);
+        r = run_backtest(cfg);
     } catch (const std::invalid_argument& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;
     }
 
-    std::cout << "Strategy: " << strategy_name << "\n";
-    std::cout << "Data source: " << (use_proto ? "protobuf" : "CSV") << "\n";
+    std::cout << "Strategy: " << cfg.strategy_name << "\n";
+    std::cout << "Data source: " << (cfg.use_proto ? "protobuf" : "CSV") << "\n";
     std::cout << "sizeof(MarketEvent)=" << sizeof(MarketEvent)
               << "  sizeof(Event)=" << sizeof(Event)
               << "  buffer_bytes=" << sizeof(Event) * 1024 << "\n\n";
 
-    EventQueue queue;
-    std::unique_ptr<IDataHandler> data;
-    if (use_proto)
-        data = std::make_unique<ProtoDataHandler>(data_path, ticker);
-    else
-        data = std::make_unique<DataHandler>(data_path, ticker);
+    // --- Performance report (same layout PerformanceTracker::report() prints) ---
+    std::cout << std::fixed << std::setprecision(2);
+    std::cout << "\n=== Backtest Performance Report ===\n";
+    std::cout << "Total Return : " << r.total_return << "%\n";
+    std::cout << std::setprecision(4);
+    std::cout << "Sharpe Ratio : " << r.sharpe_ratio << "\n";
+    std::cout << std::setprecision(2);
+    std::cout << "Max Drawdown : " << r.max_drawdown << "%\n";
+    std::cout << "Win Rate     : " << r.win_rate     << "%\n";
+    std::cout << "Total Trades : " << r.total_trades << "\n";
+    std::cout << "Total Bars   : " << r.total_bars   << "\n";
 
-    Portfolio          portfolio(100000.0);
-    ExecutionHandler   execution;
-    PerformanceTracker perf(10000);
-
-    portfolio.add_ticker(ticker);
-
-   
-    double prices[Portfolio::MAX_ASSETS] = {};
-
-    double   latest_close = 0.0;
-    uint64_t event_count  = 0;
-    uint64_t bar_count    = 0;
-    int64_t  parse_ns     = 0;   // time inside DataHandler: CSV read + parse
-    int64_t  process_ns   = 0;   // time inside the event-dispatch cascade
-
-    const auto wall_t0 = Benchmark::now();
-
-    while (true) {
-        const auto tp  = Benchmark::now();
-        const bool got = data->stream_next_event(queue);
-        parse_ns += Benchmark::elapsed_ns(tp);
-        if (!got) break;
-        ++bar_count;
-
-        
-        const auto tc = Benchmark::now();
-        while (!queue.empty()) {
-            Event e = queue.pop();
-
-            std::visit(overload{
-                [&](const MarketEvent& m) {
-                    latest_close = m.close;
-                    prices[0]    = m.close;           
-                    strategy->on_market_event(m, queue);
-                },
-                [&](const SignalEvent& s) {
-                    portfolio.on_signal(s, queue, latest_close);
-                },
-                [&](const OrderEvent& o) {
-                    execution.on_order(o, queue, latest_close);
-                },
-                [&](const FillEvent& f) {
-                    double realized_pnl = portfolio.on_fill(f);
-                    if (f.direction == OrderDirection::EXIT) {
-                        perf.record_trade(realized_pnl);
-                    }
-                },
-            }, e);
-
-            ++event_count;
-        }
-        process_ns += Benchmark::elapsed_ns(tc);
-
-        
-        perf.record_equity(portfolio.equity(prices));
-    }
-
-    const int64_t wall_ns = Benchmark::elapsed_ns(wall_t0);
-
-    perf.report();
-
-    auto to_ms   = [](int64_t ns)  { return ns / 1e6; };
-    auto kbars_s = [&](int64_t ns) { return ns ? bar_count / (ns / 1e9) / 1000.0 : 0.0; };
+    // --- Timing (inherits the fixed/precision(2) stream state set above) ---
+    auto kbars_s = [&](double ms) { return ms > 0.0 ? r.total_bars / ms : 0.0; };
 
     std::cout << "\n=== Timing ===\n";
-    std::cout << "Bars (MarketEvents) : " << bar_count   << "\n";
-    std::cout << "Events processed    : " << event_count << "\n";
-    std::cout << "Peak queue depth    : " << queue.peak_depth() << "\n";
-    std::cout << "Parse  (data ingest): " << to_ms(parse_ns)   << " ms  ("
-              << kbars_s(parse_ns)   << " k bars/s)\n";
-    std::cout << "Process (cascade)   : " << to_ms(process_ns) << " ms  ("
-              << kbars_s(process_ns) << " k bars/s)\n";
-    std::cout << "Wall clock          : " << to_ms(wall_ns)    << " ms  ("
-              << kbars_s(wall_ns)    << " k bars/s)\n";
+    std::cout << "Bars (MarketEvents) : " << r.total_bars       << "\n";
+    std::cout << "Events processed    : " << r.total_events     << "\n";
+    std::cout << "Peak queue depth    : " << r.peak_queue_depth << "\n";
+    std::cout << "Parse  (data ingest): " << r.parse_ms   << " ms  ("
+              << kbars_s(r.parse_ms)   << " k bars/s)\n";
+    std::cout << "Process (cascade)   : " << r.process_ms << " ms  ("
+              << kbars_s(r.process_ms) << " k bars/s)\n";
+    std::cout << "Wall clock          : " << r.elapsed_ms << " ms  ("
+              << kbars_s(r.elapsed_ms) << " k bars/s)\n";
     std::cout << "Parse share of wall : "
-              << (wall_ns ? 100.0 * (double)parse_ns / wall_ns : 0.0) << " %\n";
+              << (r.elapsed_ms > 0.0 ? 100.0 * r.parse_ms / r.elapsed_ms : 0.0) << " %\n";
 
     return 0;
 }

@@ -47,7 +47,10 @@ struct BacktestResult {
 
     // Engine throughput metrics
     double   elapsed_ms       = 0.0;  // wall-clock time for the full event loop
+    double   parse_ms         = 0.0;  // time inside the data handler (ingest + parse)
+    double   process_ms       = 0.0;  // time inside the event-dispatch cascade
     uint64_t total_events     = 0;    // all events dispatched through std::visit
+    uint64_t peak_queue_depth = 0;    // high-water mark of the EventQueue
     double   events_per_sec   = 0.0;  // total_events / elapsed_seconds
     double   bars_per_sec     = 0.0;  // total_bars    / elapsed_seconds
     double   column_align_ms  = 0.0;  // one-time CSV header parsing cost
