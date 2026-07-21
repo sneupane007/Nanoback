@@ -75,12 +75,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 # ── Backtester executable ─────────────────────────────────────────────────────
-# Skipped under scikit-build-core (SKBUILD is set): a `pip install .` build only
-# needs the `nanoback` extension module below, not the standalone CLI binary.
-if(NOT SKBUILD)
-    add_executable(Backtester main.cpp)
-    target_link_libraries(Backtester PRIVATE engine_lib)
-endif()
+add_executable(Backtester main.cpp)
+target_link_libraries(Backtester PRIVATE engine_lib)
 
 # ── Python bindings (optional) ────────────────────────────────────────────────
 # Built only when BOTH the binding source is present AND pybind11 is findable, so
@@ -93,7 +89,6 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/bindings/nanoback_bindings.cpp")
     if(pybind11_FOUND)
         pybind11_add_module(nanoback bindings/nanoback_bindings.cpp)
         target_link_libraries(nanoback PRIVATE engine_lib)
-        install(TARGETS nanoback DESTINATION .)
         message(STATUS "pybind11 ${pybind11_VERSION} found — building 'nanoback' Python module")
     else()
         message(STATUS "pybind11 not found — skipping 'nanoback' Python module")
@@ -101,7 +96,5 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/bindings/nanoback_bindings.cpp")
 endif()
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
-if(NOT SKBUILD)
-    enable_testing()
-    add_subdirectory(tests)
-endif()
+enable_testing()
+add_subdirectory(tests)
