@@ -65,7 +65,7 @@ BacktestResult run_backtest(const BacktestConfig& cfg) {
     while (true) {
         const auto tp  = Benchmark::now();
         const bool got = data->stream_next_event(queue);
-        parse_ns += Benchmark::elapsed_ns(tp);
+        parse_ns += Benchmark::elapsed_ns(tp); // calculate the time spent inprocessing every events
         if (!got) break;
         ++bar_count;
 
