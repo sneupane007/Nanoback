@@ -39,11 +39,20 @@ STRATS = {
 
 @st.cache_resource
 def load_nanoback():
-    """Import the compiled engine module once per server process."""
-    if str(BUILD) not in sys.path:
-        sys.path.insert(0, str(BUILD))
-    import nanoback as nb
-    return nb
+    """Import the compiled engine module once per server process.
+
+    Tries the pip-installed package first (e.g. deployed via `pip install .`,
+    which runs the CMake build through pyproject.toml). Falls back to the local
+    `build/` dir for the `cmake -B build && cmake --build build` dev workflow.
+    """
+    try:
+        import nanoback as nb
+        return nb
+    except ImportError:
+        if str(BUILD) not in sys.path:
+            sys.path.insert(0, str(BUILD))
+        import nanoback as nb
+        return nb
 
 
 def axis_values(kind, start, stop, step):
