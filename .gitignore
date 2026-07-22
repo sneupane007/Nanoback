@@ -70,6 +70,3 @@ event-loop-architecture.drawio
 
 # Downloaded market data
 data/*.csv
-
-# Python deps list
-requirements.txt

@@ -1,0 +1,11 @@
+streamlit>=1.32.0
+plotly>=5.20.0
+pandas>=2.0.0
+numpy>=1.24.0
+yfinance>=0.2.0
+protobuf>=4.0.0
+pybind11>=2.11.0
+
+# Builds and installs the `nanoback` pybind11 module via setup.py, which shells
+# out to the existing CMake config (see packages.txt for apt build deps).
+.
