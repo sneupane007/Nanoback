@@ -51,6 +51,9 @@ set(ENGINE_SOURCES
 )
 
 add_library(engine_lib STATIC ${ENGINE_SOURCES})
+# Needed so this static lib can also be linked into the shared `nanoback` module
+# below — Linux refuses to link non-PIC objects into a .so ("recompile with -fPIC").
+set_target_properties(engine_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(engine_lib PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}"
