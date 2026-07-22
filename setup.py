@@ -32,6 +32,11 @@ class CMakeBuild(build_ext):
             f"-DPython_EXECUTABLE={sys.executable}",
             f"-Dpybind11_DIR={pybind11.get_cmake_dir()}",
             "-DCMAKE_BUILD_TYPE=Release",
+            # Legacy FindPythonLibsNew.cmake (pybind11's default) looks for a
+            # standalone libpython.so, which isn't reliably discoverable inside
+            # a venv. FindPython's Development.Module component only needs the
+            # headers, which is all an extension module actually requires.
+            "-DPYBIND11_FINDPYTHON=ON",
         ]
         build_args = ["--target", "nanoback"]
 

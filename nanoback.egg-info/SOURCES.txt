@@ -1,0 +1,6 @@
+README.md
+setup.py
+nanoback.egg-info/PKG-INFO
+nanoback.egg-info/SOURCES.txt
+nanoback.egg-info/dependency_links.txt
+nanoback.egg-info/top_level.txt
